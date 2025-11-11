@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { FileText, Zap, Clock } from "lucide-react"
+import { FileText, Zap, Clock, BarChart3 } from "lucide-react"
 import Card from "@/components/Card"
 import { useReportsStore } from "@/stores/reportsStore"
 import { useTurmasStore } from "@/stores/turmasStore"
@@ -39,9 +39,7 @@ export default function HomePage() {
         <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-400 to-blue-600 bg-clip-text text-transparent">
           Sistema de Geração de Relatórios
         </h1>
-        <p className="text-slate-400 mt-2 text-lg">
-          Gerenciamento de relatórios 
-        </p>
+        <p className="text-slate-400 mt-2 text-lg">Gerenciamento centralizado de relatórios em PDF e Excel</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -84,8 +82,8 @@ export default function HomePage() {
           <div>
             <h2 className="text-xl font-bold text-white">Bem-vindo à Reports API</h2>
             <p className="text-slate-300 mt-2">
-              Sistema de geração de relatórios Acesse a aba de Relatórios para começar a
-              criar novos documentos para suas turmas.
+              Sistema de geração de relatórios inteligente. Acesse a aba de <strong>Relatórios</strong> para começar a
+              criar novos documentos para suas turmas com um clique.
             </p>
           </div>
         </div>
@@ -109,7 +107,7 @@ export default function HomePage() {
         </Card>
 
         <Card>
-          <h3 className="text-lg font-bold text-white mb-4">Recursos</h3>
+          <h3 className="text-lg font-bold text-white mb-4">Recursos Disponíveis</h3>
           <ul className="space-y-3">
             <li className="flex items-center gap-2">
               <div className="w-2 h-2 bg-blue-500 rounded-full" />
@@ -117,23 +115,37 @@ export default function HomePage() {
             </li>
             <li className="flex items-center gap-2">
               <div className="w-2 h-2 bg-blue-500 rounded-full" />
-              <span className="text-slate-300">Exportação em Excel</span>
+              <span className="text-slate-300">Exportação em Excel (XLSX)</span>
             </li>
             <li className="flex items-center gap-2">
               <div className="w-2 h-2 bg-blue-500 rounded-full" />
-              <span className="text-slate-300"></span>
+              <span className="text-slate-300">Fila de processamento em tempo real</span>
             </li>
             <li className="flex items-center gap-2">
               <div className="w-2 h-2 bg-blue-500 rounded-full" />
-              <span className="text-slate-300"></span>
+              <span className="text-slate-300">Download direto dos arquivos gerados</span>
             </li>
             <li className="flex items-center gap-2">
               <div className="w-2 h-2 bg-blue-500 rounded-full" />
-              <span className="text-slate-300"></span>
+              <span className="text-slate-300">Histórico completo de relatórios</span>
             </li>
           </ul>
         </Card>
       </div>
+
+      <Card className="border-green-500/30 bg-green-500/5">
+        <div className="flex items-start gap-3">
+          <BarChart3 className="w-5 h-5 text-green-400 mt-1 flex-shrink-0" />
+          <div>
+            <h3 className="font-bold text-white">Dica</h3>
+            <p className="text-slate-300 text-sm mt-1">
+              Comece gerando um novo relatório na seção de Relatórios. O sistema processará seu pedido em segundo plano
+              e você poderá acompanhar o progresso em tempo real.
+            </p>
+          </div>
+        </div>
+      </Card>
     </div>
   )
 }
+

@@ -21,10 +21,16 @@ export const useTurmasStore = create<TurmasStore>((set, get) => ({
       const response = await apiClient.get<ListTurmasResponse>("/turmas", {
         params: { page, pageSize },
       })
-      set({ turmas: response.data.data, loading: false })
+      const turmasData = response.data.data || response.data
+      console.log("[v0] Turmas Store - Response structure:", response.data)
+      console.log("[v0] Turmas Store - Turmas data:", turmasData)
+      set({ turmas: Array.isArray(turmasData) ? turmasData : [], loading: false })
     } catch (error: any) {
+      const errorMsg =
+        error.response?.data?.message || error.response?.data?.error || error.message || "Erro ao carregar turmas"
+      console.error("[v0] Turmas Store Error:", errorMsg)
       set({
-        error: error.response?.data?.error || "Erro ao carregar turmas",
+        error: errorMsg,
         loading: false,
       })
     }

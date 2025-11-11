@@ -35,11 +35,13 @@ export const useReportsStore = create<ReportsState>((set) => ({
         turmaId,
         tipoRelatorio,
       })
-      const reportId = response.data.data.id
+      const reportId = response.data.data?.id || response.data.id
       set({ isLoading: false })
+      console.log("[v0] Report created successfully:", reportId)
       return reportId
     } catch (error: any) {
       const errorMsg = error.response?.data?.message || error.response?.data?.error || "Erro ao criar relatório"
+      console.error("[v0] Report creation error:", errorMsg)
       set({ error: errorMsg, isLoading: false })
       throw errorMsg
     }
@@ -48,9 +50,12 @@ export const useReportsStore = create<ReportsState>((set) => ({
   getReportStatus: async (id) => {
     try {
       const response = await apiClient.get<any>(`/reports/${id}`)
-      return response.data.data
+      const reportData = response.data.data || response.data
+      console.log("[v0] Report status:", reportData.status)
+      return reportData
     } catch (error: any) {
       const errorMsg = error.response?.data?.error || "Erro ao buscar status do relatório"
+      console.error("[v0] Status check error:", errorMsg)
       throw errorMsg
     }
   },
@@ -58,9 +63,12 @@ export const useReportsStore = create<ReportsState>((set) => ({
   getDownloadUrl: async (id) => {
     try {
       const response = await apiClient.get<any>(`/reports/${id}/download`)
-      return response.data.data.downloadUrl
+      const downloadUrl = response.data.data?.downloadUrl || response.data.downloadUrl
+      console.log("[v0] Download URL obtained:", downloadUrl)
+      return downloadUrl
     } catch (error: any) {
       const errorMsg = error.response?.data?.error || "Erro ao obter link de download"
+      console.error("[v0] Download error:", errorMsg)
       throw errorMsg
     }
   },
@@ -71,16 +79,21 @@ export const useReportsStore = create<ReportsState>((set) => ({
       const response = await apiClient.get<ListReportsResponse>("/reports", {
         params: { page, pageSize },
       })
+      const reportsData = response.data.data || response.data
+      console.log("[v0] Reports Store - Response structure:", response.data)
+      console.log("[v0] Reports Store - Reports data:", reportsData)
       set({
-        reports: response.data.data,
-        total: response.data.total,
-        page: response.data.page,
-        pageSize: response.data.pageSize,
+        reports: Array.isArray(reportsData) ? reportsData : [],
+        total: response.data.total || 0,
+        page: response.data.page || 1,
+        pageSize: response.data.pageSize || 20,
         isLoading: false,
       })
     } catch (error: any) {
+      const errorMsg = error.response?.data?.error || "Erro ao carregar relatórios"
+      console.error("[v0] Fetch reports error:", errorMsg)
       set({
-        error: error.response?.data?.error || "Erro ao carregar relatórios",
+        error: errorMsg,
         isLoading: false,
       })
     }

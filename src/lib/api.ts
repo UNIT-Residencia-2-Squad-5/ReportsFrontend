@@ -1,6 +1,7 @@
 import axios, { type AxiosInstance } from "axios"
 
-const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3001/api"
+const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3000/api"
+console.log("[v0] API Base URL:", BASE_URL)
 
 class ApiClient {
   private client: AxiosInstance
@@ -13,10 +14,39 @@ class ApiClient {
       },
     })
 
-    this.client.interceptors.response.use(
-      (response) => response,
+    this.client.interceptors.request.use(
+      (config) => {
+        console.log("[v0] API Request:", {
+          method: config.method?.toUpperCase(),
+          url: config.url,
+          params: config.params,
+          data: config.data,
+        })
+        return config
+      },
       (error) => {
-        console.error("API Error:", error.response?.data || error.message)
+        console.error("[v0] Request Error:", error)
+        return Promise.reject(error)
+      },
+    )
+
+    this.client.interceptors.response.use(
+      (response) => {
+        console.log("[v0] API Response:", {
+          status: response.status,
+          url: response.config.url,
+          data: response.data,
+        })
+        return response
+      },
+      (error) => {
+        console.error("[v0] API Error:", {
+          url: error.config?.url,
+          status: error.response?.status,
+          statusText: error.response?.statusText,
+          data: error.response?.data || error.message,
+          message: error.message,
+        })
         return Promise.reject(error)
       },
     )
