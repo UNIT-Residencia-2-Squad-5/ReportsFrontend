@@ -1,0 +1,32 @@
+@import "tailwindcss";
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  --background: 17 24 39;
+  --foreground: 243 244 246;
+  --primary: 59 130 246;
+  --primary-light: 96 165 250;
+  --secondary: 31 41 55;
+  --accent: 34 197 94;
+  --accent-destructive: 239 68 68;
+  --border: 55 65 81;
+  --muted: 107 114 128;
+}
+
+body {
+  background-color: rgb(var(--background));
+  color: rgb(var(--foreground));
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans",
+    "Droid Sans", "Helvetica Neue", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, "Courier New", monospace;
+}
