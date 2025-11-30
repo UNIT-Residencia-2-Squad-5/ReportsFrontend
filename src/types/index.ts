@@ -54,6 +54,7 @@ export interface Report {
   file_key?: string
   nome_arquivo?: string
   error_message?: string
+  turma_nome?: string // For dashboard display
 }
 
 export interface CreateReportRequest {

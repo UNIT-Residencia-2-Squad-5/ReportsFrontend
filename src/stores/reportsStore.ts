@@ -11,7 +11,7 @@ interface ReportsState {
   page: number
   pageSize: number
 
-  createReport: (turmaId: string, tipoRelatorio: string) => Promise<string>
+  createReport: (turmaId: string, tipoRelatorio: string, fileName?: string) => Promise<string>
   getReportStatus: (id: string) => Promise<Report>
   getDownloadUrl: (id: string) => Promise<string>
   fetchReports: (page?: number, pageSize?: number) => Promise<void>
@@ -28,12 +28,13 @@ export const useReportsStore = create<ReportsState>((set) => ({
   page: 1,
   pageSize: 20,
 
-  createReport: async (turmaId, tipoRelatorio) => {
+  createReport: async (turmaId, tipoRelatorio, fileName) => {
     set({ isLoading: true, error: null })
     try {
       const response = await apiClient.post<any>("/reports", {
         turmaId,
         tipoRelatorio,
+        nomeArquivo: fileName,
       })
       const reportId = response.data.data?.id || response.data.id
       set({ isLoading: false })
@@ -49,14 +50,34 @@ export const useReportsStore = create<ReportsState>((set) => ({
 
   getReportStatus: async (id) => {
     try {
+      console.log(`[getReportStatus] Fetching status for report ${id}`)
       const response = await apiClient.get<any>(`/reports/${id}`)
       const reportData = response.data.data || response.data
-      console.log("[v0] Report status:", reportData.status)
+      
+      // Normalize status values
+      if (reportData.status === 'concluido') {
+        reportData.status = 'completed'
+      } else if (reportData.status === 'processando') {
+        reportData.status = 'processing'
+      } else if (reportData.status === 'falha') {
+        reportData.status = 'failed'
+      }
+      
+      console.log(`[getReportStatus] Status for report ${id}:`, reportData.status)
+      
+      // Update the report in the store
+      set(state => {
+        const updatedReports = state.reports.map(report => 
+          report.id === id ? { ...report, ...reportData } : report
+        )
+        return { reports: updatedReports }
+      })
+      
       return reportData
     } catch (error: any) {
-      const errorMsg = error.response?.data?.error || "Erro ao buscar status do relatório"
-      console.error("[v0] Status check error:", errorMsg)
-      throw errorMsg
+      console.error(`[getReportStatus] Error for report ${id}:`, error)
+      const errorMsg = error.response?.data?.error || error.message || "Erro ao buscar status do relatório"
+      throw new Error(errorMsg)
     }
   },
 
@@ -74,21 +95,59 @@ export const useReportsStore = create<ReportsState>((set) => ({
   },
 
   fetchReports: async (page = 1, pageSize = 20) => {
+    console.log('[Reports] Iniciando busca de relatórios...')
     set({ isLoading: true, error: null })
     try {
-      const response = await apiClient.get<ListReportsResponse>("/reports", {
+      console.log('[Reports] Fazendo requisição para /api/reports...')
+      const response = await apiClient.get<any>("/reports", {
         params: { page, pageSize },
       })
-      const reportsData = response.data.data || response.data
-      console.log("[v0] Reports Store - Response structure:", response.data)
-      console.log("[v0] Reports Store - Reports data:", reportsData)
+      
+      console.log('[Reports] Resposta recebida:', response)
+      
+      let reportsData: Report[] = []
+      let total = 0
+      
+      // Verifica se a resposta tem a estrutura { success: true, data: { reports: [...] } }
+      if (response.data && response.data.success === true && response.data.data) {
+        const responseData = response.data.data
+        
+        // Verifica se os relatórios estão em responseData.reports
+        if (responseData.reports && Array.isArray(responseData.reports)) {
+          // Mapeia os dados para o formato esperado pelo frontend
+          reportsData = responseData.reports.map((report: any) => {
+            // Normaliza os status
+            let status = report.status
+            if (status === 'concluido') status = 'completed'
+            else if (status === 'processando') status = 'processing'
+            else if (status === 'falha') status = 'failed'
+            
+            return {
+              id: report.id?.toString?.() || String(report.id),
+              turma_id: report.turma_id,
+              tipo_relatorio: report.tipo_relatorio,
+              status: status,
+              created_at: report.created_at || new Date().toISOString(),
+              updated_at: report.updated_at || report.created_at || new Date().toISOString(),
+              nome_arquivo: report.nome_arquivo || report.nomeArquivo || `relatorio_${report.id}.${report.tipo_relatorio === 'excel' ? 'xlsx' : 'pdf'}`,
+              turma_nome: report.turma_nome || report.turmaNome || report.turma?.nome,
+              file_key: report.file_key || report.fileKey,
+            } as Report
+          })
+          total = responseData.total || reportsData.length
+          console.log('[Reports] Relatórios processados:', reportsData)
+        }
+      }
+      
       set({
-        reports: Array.isArray(reportsData) ? reportsData : [],
-        total: response.data.total || 0,
-        page: response.data.page || 1,
-        pageSize: response.data.pageSize || 20,
+        reports: reportsData,
+        total,
+        page,
+        pageSize,
         isLoading: false,
       })
+      
+      console.log('[Reports] Estado atualizado com sucesso')
     } catch (error: any) {
       const errorMsg = error.response?.data?.error || "Erro ao carregar relatórios"
       console.error("[v0] Fetch reports error:", errorMsg)

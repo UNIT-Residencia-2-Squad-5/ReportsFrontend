@@ -32,10 +32,17 @@ class ApiClient {
 
     this.client.interceptors.response.use(
       (response) => {
-        console.log("[v0] API Response:", {
+        console.log("[API] Resposta recebida:", {
           status: response.status,
           url: response.config.url,
+          headers: response.headers,
           data: response.data,
+          config: {
+            method: response.config.method,
+            baseURL: response.config.baseURL,
+            url: response.config.url,
+            params: response.config.params,
+          }
         })
         return response
       },
