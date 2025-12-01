@@ -30,11 +30,17 @@ const buildSuggestedFileName = (
 
 const ensureReportMetadata = (report: Report): Report => {
   const extension = inferFileExtension(report.tipo_relatorio)
+  // Garantir que as datas obrigatórias tenham valores válidos
+  const createdAt = report.created_at || new Date().toISOString()
+  const updatedAt = report.updated_at || createdAt
+  
   return {
     ...report,
-    nome_arquivo: report.nome_arquivo || `relatorio_${report.id.slice(0, 8)}.${extension}`,
-    created_at: report.created_at || new Date().toISOString(),
-    updated_at: report.updated_at || report.created_at || new Date().toISOString(),
+    created_at: createdAt,
+    updated_at: updatedAt,
+    // Se data_solicitacao não existir, usar a data de criação
+    data_solicitacao: report.data_solicitacao || createdAt,
+    nome_arquivo: report.nome_arquivo || `relatorio_${report.id?.slice(0, 8) || 'report'}.${extension}`,
   }
 }
 
@@ -42,12 +48,19 @@ const INITIAL_FORM_STATE = {
   turmaId: "",
   tipoRelatorio: "pdf" as string,
   fileName: "",
+  lastSuggestedName: "", // Track the last auto-generated filename
 }
 
-const createInitialFormState = () => ({ ...INITIAL_FORM_STATE })
+const createInitialFormState = () => ({
+  turmaId: "",
+  tipoRelatorio: "pdf",
+  fileName: "",
+  lastSuggestedName: ""
+})
 
 // Utility Functions
-const formatDate = (isoString: string) => {
+const formatDate = (isoString?: string) => {
+  if (!isoString) return "-"
   const date = new Date(isoString)
   return new Intl.DateTimeFormat("pt-BR", {
     day: "2-digit",
@@ -186,19 +199,27 @@ export default function ReportsDashboard() {
   }, [selectedReport?.id, selectedReport?.status, fetchReports])
 
   useEffect(() => {
-    if (!formData.turmaId || !formData.tipoRelatorio) return
+    // Se o usuário já tiver digitado algo, não sobrescreva
+    if (formData.fileName && formData.fileName !== formData.lastSuggestedName) {
+      return;
+    }
 
-    setFormData((prev) => {
-      if (!prev.fileName) {
-        const turma = turmas.find((t) => t.id === formData.turmaId)
-        return {
-          ...prev,
-          fileName: buildSuggestedFileName(turma?.nome, formData.turmaId, formData.tipoRelatorio),
-        }
-      }
-      return prev
-    })
-  }, [formData.turmaId, formData.tipoRelatorio, turmas])
+    // Apenas atualiza se tiver turma e tipo de relatório selecionados
+    if (formData.turmaId && formData.tipoRelatorio) {
+      const turma = turmas.find((t) => t.id === formData.turmaId);
+      const suggestedName = buildSuggestedFileName(
+        turma?.nome, 
+        formData.turmaId, 
+        formData.tipoRelatorio
+      );
+
+      setFormData(prev => ({
+        ...prev,
+        fileName: suggestedName,
+        lastSuggestedName: suggestedName,
+      }));
+    }
+  }, [formData.turmaId, formData.tipoRelatorio, turmas]);
 
   const createNewReport = async () => {
     if (!formData.turmaId || !formData.tipoRelatorio) {
@@ -206,13 +227,34 @@ export default function ReportsDashboard() {
       return
     }
 
+    console.log("[DEBUG] Dados do formulário antes de criar relatório:", {
+      turmaId: formData.turmaId,
+      tipoRelatorio: formData.tipoRelatorio,
+      fileName: formData.fileName,
+      lastSuggestedName: formData.lastSuggestedName
+    });
+
     try {
-      const reportId = await createReport(formData.turmaId, formData.tipoRelatorio, formData.fileName || undefined)
+      console.log("[DEBUG] Chamando createReport com:", {
+        turmaId: formData.turmaId,
+        tipoRelatorio: formData.tipoRelatorio,
+        fileName: formData.fileName
+      });
+      
+      const reportId = await createReport(
+        formData.turmaId, 
+        formData.tipoRelatorio, 
+        formData.fileName
+      )
+      
+      console.log("[DEBUG] Relatório criado com ID:", reportId);
       addToast("Relatório criado, processando em segundo plano", "success")
       setShowNewReportModal(false)
       setFormData(createInitialFormState())
+      console.log("[DEBUG] Formulário resetado, buscando relatórios atualizados...");
       await fetchReports()
     } catch (error) {
+      console.error("Erro ao criar relatório:", error)
       addToast(String(error) || "Falha ao gerar relatório", "error")
     }
   }
@@ -258,19 +300,35 @@ export default function ReportsDashboard() {
     }, 5000);
   };
 
-  const filteredReports = (reports || []).filter((report: Report) => {
-    const search = searchTerm.toLowerCase();
-    const reportType = getReportTypeLabel(report.tipo_relatorio).toLowerCase();
-    const fileName = report.nome_arquivo?.toLowerCase() || '';
+  const filteredReports = (reports || [])
+    .filter((report: Report) => {
+      const search = searchTerm.toLowerCase();
+      const reportType = getReportTypeLabel(report.tipo_relatorio).toLowerCase();
+      const fileName = report.nome_arquivo?.toLowerCase() || '';
 
-    const matchesSearch = !search || 
-      fileName.includes(search) ||
-      reportType.includes(search);
-      
-    const matchesStatus = statusFilter === 'all' || report.status === statusFilter;
+      const matchesSearch = !search || 
+        fileName.includes(search) ||
+        reportType.includes(search);
+        
+      const matchesStatus = statusFilter === 'all' || report.status === statusFilter;
 
-    return matchesSearch && matchesStatus;
-  })
+      return matchesSearch && matchesStatus;
+    })
+    .sort((a, b) => {
+      try {
+        // Ordena por ID em ordem decrescente (assumindo que IDs maiores são mais recentes)
+        // Converte para número para garantir a comparação numérica
+        const idA = parseInt(a.id, 10) || 0;
+        const idB = parseInt(b.id, 10) || 0;
+        
+        // Ordem decrescente (maior ID primeiro)
+        return idB - idA;
+      } catch (error) {
+        console.error('Erro ao ordenar relatórios por ID:', error);
+        // Em caso de erro, mantém a ordem original
+        return 0;
+      }
+    })
 
   return (
     <div
@@ -657,7 +715,9 @@ export default function ReportsDashboard() {
                           {getReportTypeLabel(report.tipo_relatorio)}
                         </div>
                       </td>
-                      <td style={{ color: "rgba(255, 255, 255, 0.7)" }}>{formatDate(report.created_at)}</td>
+                      <td style={{ color: "rgba(255, 255, 255, 0.7)" }}>
+                        {formatDate(report.data_solicitacao || report.created_at)}
+                      </td>
                       <td>
                         <span className={getStatusBadgeClass(report.status)}>{getStatusLabel(report.status)}</span>
                       </td>
@@ -800,7 +860,6 @@ export default function ReportsDashboard() {
                   >
                     <option value="pdf">PDF</option>
                     <option value="excel">Excel (.xlsx)</option>
-                    <option value="workload_pdf">PDF (Workload)</option>
                     <option value="workload_excel">Excel (Workload)</option>
                   </select>
                 </div>

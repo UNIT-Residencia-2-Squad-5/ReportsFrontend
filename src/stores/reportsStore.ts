@@ -2,6 +2,21 @@ import { create } from "zustand"
 import type { Report, ListReportsResponse } from "@/types"
 import { apiClient } from "@/lib/api"
 
+const normalizeStatus = (status?: string): Report["status"] => {
+  const normalized = status?.toLowerCase()
+
+  if (normalized === "concluido" || normalized === "completed") {
+    return "completed"
+  }
+
+  if (normalized === "falha" || normalized === "failed" || normalized === "erro" || normalized === "error") {
+    return "failed"
+  }
+
+  // Covers "processando", "processing", "pendente", "pending" and undefined
+  return "processing"
+}
+
 interface ReportsState {
   reports: Report[]
   selectedReport: Report | null
@@ -26,18 +41,70 @@ export const useReportsStore = create<ReportsState>((set) => ({
   error: null,
   total: 0,
   page: 1,
-  pageSize: 20,
+  pageSize: 100,
 
   createReport: async (turmaId, tipoRelatorio, fileName) => {
     set({ isLoading: true, error: null })
     try {
+      console.log('[REPORT STORE] Enviando requisição para criar relatório:', {
+        turmaId,
+        tipoRelatorio,
+        fileName,
+        nomeArquivo: fileName // Mostrando que estamos enviando o nome do arquivo
+      });
+      
       const response = await apiClient.post<any>("/reports", {
         turmaId,
         tipoRelatorio,
         nomeArquivo: fileName,
+      });
+      
+      console.log('[REPORT STORE] Resposta da API:', {
+        status: response.status,
+        data: response.data,
+        headers: response.headers
+      });
+      
+      const reportId = (response.data.data?.id || response.data.id)?.toString();
+      console.log('[REPORT STORE] ID do relatório criado:', reportId);
+
+      const now = new Date().toISOString()
+      const inferredExtension = tipoRelatorio.includes("excel") ? "xlsx" : "pdf"
+      const placeholderReport: Report = {
+        id: reportId,
+        turma_id: turmaId,
+        tipo_relatorio: tipoRelatorio,
+        status: "processing",
+        created_at: now,
+        updated_at: now,
+        data_solicitacao: now,
+        nome_arquivo: fileName || `relatorio_${reportId?.slice(0, 8) || turmaId}.${inferredExtension}`,
+      }
+
+      set((state) => {
+        // Adiciona o novo relatório e remove duplicatas
+        const updatedReports = [
+          ...state.reports.filter((report) => report.id !== reportId),
+          placeholderReport
+        ].sort((a, b) => {
+          // Converter para timestamp considerando o fuso horário local
+          const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
+          const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
+          return dateB - dateA; // Ordem decrescente (mais recente primeiro)
+        });
+        
+        console.log('[createReport] Relatórios ordenados:', updatedReports.map(r => ({
+          id: r.id,
+          created_at: r.created_at,
+          tipo_relatorio: r.tipo_relatorio
+        })));
+        
+        return {
+          isLoading: false,
+          reports: updatedReports,
+        };
       })
-      const reportId = response.data.data?.id || response.data.id
-      set({ isLoading: false })
+
       console.log("[v0] Report created successfully:", reportId)
       return reportId
     } catch (error: any) {
@@ -53,24 +120,29 @@ export const useReportsStore = create<ReportsState>((set) => ({
       console.log(`[getReportStatus] Fetching status for report ${id}`)
       const response = await apiClient.get<any>(`/reports/${id}`)
       const reportData = response.data.data || response.data
-      
-      // Normalize status values
-      if (reportData.status === 'concluido') {
-        reportData.status = 'completed'
-      } else if (reportData.status === 'processando') {
-        reportData.status = 'processing'
-      } else if (reportData.status === 'falha') {
-        reportData.status = 'failed'
-      }
+      reportData.status = normalizeStatus(reportData.status)
       
       console.log(`[getReportStatus] Status for report ${id}:`, reportData.status)
       
-      // Update the report in the store
+      // Update the report in the store and maintain sorting
       set(state => {
         const updatedReports = state.reports.map(report => 
           report.id === id ? { ...report, ...reportData } : report
-        )
-        return { reports: updatedReports }
+        ).sort((a, b) => {
+          // Converter para timestamp considerando o fuso horário local
+          const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
+          const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
+          return dateB - dateA; // Ordem decrescente (mais recente primeiro)
+        });
+        
+        console.log(`[getReportStatus] Relatórios ordenados para ${id}:`, updatedReports.map(r => ({
+          id: r.id,
+          created_at: r.created_at,
+          tipo_relatorio: r.tipo_relatorio,
+          status: r.status
+        })));
+        
+        return { reports: updatedReports };
       })
       
       return reportData
@@ -94,7 +166,7 @@ export const useReportsStore = create<ReportsState>((set) => ({
     }
   },
 
-  fetchReports: async (page = 1, pageSize = 20) => {
+  fetchReports: async (page = 1, pageSize = 100) => {
     console.log('[Reports] Iniciando busca de relatórios...')
     set({ isLoading: true, error: null })
     try {
@@ -117,24 +189,27 @@ export const useReportsStore = create<ReportsState>((set) => ({
           // Mapeia os dados para o formato esperado pelo frontend
           reportsData = responseData.reports.map((report: any) => {
             // Normaliza os status
-            let status = report.status
-            if (status === 'concluido') status = 'completed'
-            else if (status === 'processando') status = 'processing'
-            else if (status === 'falha') status = 'failed'
-            
+            const status = normalizeStatus(report.status)
+
             return {
               id: report.id?.toString?.() || String(report.id),
               turma_id: report.turma_id,
               tipo_relatorio: report.tipo_relatorio,
-              status: status,
-              created_at: report.created_at || new Date().toISOString(),
-              updated_at: report.updated_at || report.created_at || new Date().toISOString(),
+              status,
+              created_at: report.created_at || report.data_solicitacao || null,
+              updated_at: report.updated_at || report.created_at || report.data_solicitacao || null,
               nome_arquivo: report.nome_arquivo || report.nomeArquivo || `relatorio_${report.id}.${report.tipo_relatorio === 'excel' ? 'xlsx' : 'pdf'}`,
               turma_nome: report.turma_nome || report.turmaNome || report.turma?.nome,
               file_key: report.file_key || report.fileKey,
             } as Report
           })
           total = responseData.total || reportsData.length
+          reportsData = reportsData.sort((a, b) => {
+            // Converter para timestamp considerando o fuso horário local
+            const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
+            const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
+            return dateB - dateA; // Ordem decrescente (mais recente primeiro)
+          })
           console.log('[Reports] Relatórios processados:', reportsData)
         }
       }

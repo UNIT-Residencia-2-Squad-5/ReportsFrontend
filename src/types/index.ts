@@ -48,7 +48,8 @@ export interface Report {
   id: string
   turma_id: string
   tipo_relatorio: string
-  status: "pending" | "processing" | "completed" | "failed"
+  status: "processing" | "completed" | "failed"
+  data_solicitacao?: string
   created_at: string
   updated_at: string
   file_key?: string
@@ -64,7 +65,7 @@ export interface CreateReportRequest {
 
 export interface ReportStatus {
   id: string
-  status: "pending" | "processing" | "completed" | "failed"
+  status: "processing" | "completed" | "failed"
   message?: string
 }
 
