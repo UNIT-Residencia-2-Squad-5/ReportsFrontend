@@ -258,13 +258,11 @@ export default function ReportsDashboard() {
     }, 5000);
   };
 
-  const readyReports = (reports || []).filter((report: Report) => report.status === "completed")
-
-  const filteredReports = readyReports.filter((report: Report) => {
+  const filteredReports = (reports || []).filter((report: Report) => {
     const search = searchTerm.toLowerCase();
     const reportType = getReportTypeLabel(report.tipo_relatorio).toLowerCase();
     const fileName = report.nome_arquivo?.toLowerCase() || '';
-    
+
     const matchesSearch = !search || 
       fileName.includes(search) ||
       reportType.includes(search);
