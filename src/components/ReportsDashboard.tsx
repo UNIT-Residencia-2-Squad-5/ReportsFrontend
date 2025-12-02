@@ -132,71 +132,43 @@ export default function ReportsDashboard() {
     fetchTurmas()
   }, [])
 
-  // Atualiza automaticamente os relatórios em processamento
+  // Atualização simples e direta dos relatórios em processamento
   useEffect(() => {
-    const checkAndUpdateReports = async () => {
-      try {
-        const currentReports = useReportsStore.getState().reports
-        const hasProcessingOrPending = currentReports.some(
-          (r) => r.status === "processing" || r.status === "pending" || !r.status,
-        )
-
-        if (hasProcessingOrPending) {
-          console.log("[ReportsRefresh] Refreshing reports list...")
-          await fetchReports(1, 100)
+    const interval = setInterval(async () => {
+      const { reports, fetchReports } = useReportsStore.getState();
+      const hasProcessing = reports.some(r => 
+        r.status === 'processing' || r.status === 'pending' || !r.status
+      );
+      
+      if (hasProcessing) {
+        // Atualiza a lista inteira de relatórios
+        await fetchReports(1, 100);
+        
+        // Atualiza o relatório selecionado se necessário
+        if (selectedReport) {
+          const updatedReport = reports.find(r => r.id === selectedReport.id);
+          if (updatedReport && updatedReport.status !== selectedReport.status) {
+            setSelectedReport(updatedReport);
+          }
         }
-      } catch (error) {
-        console.error("[ReportsRefresh] Error refreshing reports:", error)
       }
-    }
+    }, 2000);
+    
+    return () => clearInterval(interval);
+  }, [selectedReport?.id]);
 
-    const intervalId = setInterval(checkAndUpdateReports, 10000)
-    checkAndUpdateReports()
-
-    return () => {
-      console.log("[ReportsRefresh] Cleaning up reports refresh interval")
-      clearInterval(intervalId)
-    }
-  }, [fetchReports])
-
+  // Atualiza metadados do relatório selecionado
   useEffect(() => {
-    if (!selectedReport) return
+    if (!selectedReport) return;
 
     const needsMetadataUpdate =
-      !selectedReport.nome_arquivo || !selectedReport.created_at || !selectedReport.updated_at
-    const reportWithMetadata = needsMetadataUpdate
-      ? ensureReportMetadata(selectedReport)
-      : selectedReport
-
+      !selectedReport.nome_arquivo || !selectedReport.created_at || !selectedReport.updated_at;
+      
     if (needsMetadataUpdate) {
-      setSelectedReport(reportWithMetadata)
+      const reportWithMetadata = ensureReportMetadata(selectedReport);
+      setSelectedReport(reportWithMetadata);
     }
-
-    if (reportWithMetadata.status === "completed" || reportWithMetadata.status === "failed") return
-
-    console.log(`[StatusPolling] Starting status polling for report ${reportWithMetadata.id}`)
-    const interval = setInterval(async () => {
-      try {
-        console.log(`[StatusPolling] Checking status for report ${reportWithMetadata.id}`)
-        const updated = await useReportsStore.getState().getReportStatus(reportWithMetadata.id)
-        const safeReport = ensureReportMetadata(updated)
-        console.log(`[StatusPolling] Updated status for report ${reportWithMetadata.id}:`, safeReport.status)
-        setSelectedReport(safeReport)
-
-        if (safeReport.status === "completed" || safeReport.status === "failed") {
-          console.log(`[StatusPolling] Status changed to ${safeReport.status}, refreshing reports list`)
-          await fetchReports()
-        }
-      } catch (error) {
-        console.error(`[StatusPolling] Error updating status for report ${reportWithMetadata.id}:`, error)
-      }
-    }, 5000)
-
-    return () => {
-      console.log(`[StatusPolling] Stopping status polling for report ${reportWithMetadata.id}`)
-      clearInterval(interval)
-    }
-  }, [selectedReport?.id, selectedReport?.status, fetchReports])
+  }, [selectedReport?.id]);
 
   useEffect(() => {
     // Se o usuário já tiver digitado algo, não sobrescreva
@@ -862,30 +834,6 @@ export default function ReportsDashboard() {
                     <option value="excel">Excel (.xlsx)</option>
                     <option value="workload_excel">Excel (Workload)</option>
                   </select>
-                </div>
-
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "14px",
-                      fontWeight: "500",
-                      marginBottom: "8px",
-                      color: "rgba(255, 255, 255, 0.8)",
-                    }}
-                  >
-                    Nome do Arquivo
-                  </label>
-                  <input
-                    type="text"
-                    className="input-field"
-                    value={formData.fileName}
-                    onChange={(e) => setFormData({ ...formData, fileName: e.target.value })}
-                    placeholder="relatorio_turma.pdf"
-                  />
-                  <div style={{ fontSize: "12px", color: "rgba(255, 255, 255, 0.5)", marginTop: "6px" }}>
-                    Sugestão gerada automaticamente
-                  </div>
                 </div>
 
                 <div style={{ display: "flex", gap: "12px", marginTop: "24px" }}>
